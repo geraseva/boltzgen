@@ -545,7 +545,13 @@ def parse_polymer(
                 mapping += [count + start - 1] * (num - start)
                 sampleidx_to_specidx.extend(mapping)
             res_design_mask.extend([True] * num)
-            seq_processed.extend(["GLY"] * num)
+            if const.chain_types[chain_type]=='PROTEIN':
+                seq_processed.extend(["GLY"] * num)
+            elif const.chain_types[chain_type]=='DNA':
+                seq_processed.extend(["DN"] * num)
+            elif const.chain_types[chain_type]=='RNA':
+                seq_processed.extend(["N"] * num)
+
             count += start
         else:
             raise ValueError("Token must be tuple of int or string")

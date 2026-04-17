@@ -1087,6 +1087,7 @@ def process_atom_features(
         )
         # get atoms and fake atoms
         is_protein = token["mol_type"] == const.chain_type_ids["PROTEIN"]
+        is_na = (token["mol_type"] == const.chain_type_ids["DNA"]) + (token["mol_type"] == const.chain_type_ids["RNA"])
 
         if bool(token["design_mask"]) and atom14 and is_protein:
             real_atoms = data.structure.atoms[
@@ -1146,6 +1147,23 @@ def process_atom_features(
             token_atoms["coords"][placements == "CA"] = ca["coords"]
             token_atoms["is_present"][placements == "CA"] = ca["is_present"]
             token_atoms["plddt"][placements == "CA"] = ca["plddt"]
+            assert len(token_atoms) == atom_num
+
+        elif bool(token["design_mask"]) and (atom14 or atom37) and is_na:
+            real_atoms = data.structure.atoms[
+                token["atom_idx"] : token["atom_idx"] + token["atom_num"]
+            ]
+            fake_atoms = possible_fake_atoms[token["atom_num"] : atom_num]
+            token_atoms = np.concatenate([real_atoms, fake_atoms])
+            na_placements = np.array(const.fake_na_atom_placements[res_type])
+            na_placements_unique = np.unique(na_placements[na_placements != '.'])
+            for c in na_placements_unique:
+                c1 = real_atoms[const.ref_atoms[res_type].index(c)]
+                token_atoms["coords"][na_placements == c] = c1["coords"]
+                token_atoms["is_present"][na_placements == c] = c1["is_present"]
+                token_atoms["plddt"][na_placements == c] = c1["plddt"]
+            fake_atom_mask.append([0] * len(real_atoms))
+            fake_atom_mask.append([1] * len(fake_atoms))
             assert len(token_atoms) == atom_num
         else:
             real_atoms = data.structure.atoms[
@@ -1208,7 +1226,18 @@ def process_atom_features(
         ]["coords"]
 
         # Get coordinates of fake atoms
-        if bool(token["design_mask"]) and atom14 and len(fake_atoms) > 0:
+        if bool(token["design_mask"]) and is_na and len(fake_atoms) > 0:
+            coords_set = np.concatenate(
+                [
+                    coords_set[: len(real_atoms)],
+                    np.zeros((len(fake_atoms), 3), dtype=coords_set.dtype),
+                ]
+            )
+            for c in na_placements_unique:
+              c1_coord = coords_set[const.ref_atoms[res_type].index(c)]
+              coords_set[na_placements == c] = c1_coord
+
+        elif bool(token["design_mask"]) and atom14 and len(fake_atoms) > 0:
             coords_set = np.concatenate(
                 [
                     coords_set[: len(real_atoms)],
@@ -1734,7 +1763,7 @@ def res_from_atom14(
         & (feat["mol_type"] == const.chain_type_ids["PROTEIN"]).bool()
     )
     if design_mask.sum() == 0:
-        return feat
+        return na_res_from_atom(feat)
 
     # Get designed atom coordinates in shape N//14 x 14 x 3
     atom_to_token = torch.argmax(feat["atom_to_token"].int(), dim=-1)
@@ -1819,7 +1848,7 @@ def res_from_atom37(
     # that the residue is a standard residue and has moltype PROTEIN
     design_mask = feat["design_mask"].bool()
     if design_mask.sum() == 0:
-        return feat
+        return na_res_from_atom(feat)
 
     # Get designed atom coordinates in shape N//37 x 37 x 3
     atom_to_token = torch.argmax(feat["atom_to_token"], dim=-1)
@@ -1924,7 +1953,7 @@ def res_all_gly(
         & (feat["mol_type"] == const.chain_type_ids["PROTEIN"]).bool()
     )
     if design_mask.sum() == 0:
-        return feat
+        return na_res_all_n(feat)
 
     # Get designed atom coordinates in shape N//4 x 4 x 3
     atom_to_token = torch.argmax(feat["atom_to_token"].int(), dim=-1)
@@ -1966,6 +1995,150 @@ def res_all_gly(
     feat["ref_atom_name_chars"][atom_design_mask] = design_names
     feat["ref_element"][atom_design_mask] = design_elements
     return feat
+
+
+def na_res_all_n(feat: Dict[str, Tensor],
+):
+    """Returns a new dict of features with nucleotide types for only backbones
+
+    Parameters
+    ----------
+    feat : Dict[str, Tensor]
+        The features.
+
+    Returns
+    -------
+    Dict[str, Tensor]
+        The ensemble features.
+    """
+    one_hot = one_hot_torch
+    feat = copy.deepcopy(feat)
+
+    # Only attempt residue-type inference on designed protein residues
+    design_dna_mask = feat["design_mask"].bool() & (feat["mol_type"] == const.chain_type_ids["DNA"]).bool()
+    design_rna_mask = feat["design_mask"].bool() & (feat["mol_type"] == const.chain_type_ids["RNA"]).bool()
+    design_mask = (design_dna_mask | design_rna_mask)
+    if design_mask.sum() == 0:
+        return feat
+
+    # Get designed atom coordinates in shape N//4 x 4 x 3
+    atom_to_token = torch.argmax(feat["atom_to_token"].int(), dim=-1)
+    token_indices = feat["token_index"][design_mask]
+    atom_design_mask = torch.isin(atom_to_token, token_indices)
+    atom_design_mask = atom_design_mask & feat["atom_pad_mask"].bool()
+
+    # update res_type and name
+    # counts has shape N x 4, now we extract which combination of counts corresponds to which restype
+    # Invalid counts will be turned into UNK. Note that there also exists a valid count that encodes UNK.
+    res_type_letters = [('DN' if d else 'N') for d, i in zip(design_dna_mask,design_mask) if i]
+    res_num_atoms = [(22 if a.startswith('D') else 23) for a in res_type_letters]
+
+    res_type = [const.token_ids[ttype] for ttype in res_type_letters]
+    res_type = torch.tensor(res_type).to(feat["res_type"])
+    feat["res_type"][design_mask] = one_hot(res_type, len(const.tokens))
+    ccds = [convert_ccd(res_name) for res_name in res_type_letters]
+    ccds = torch.tensor(ccds).to(feat["res_type"])
+    feat["ccd"][design_mask] = ccds
+
+    # update ref_element, and ref_atom_name_chars, ref_charge,
+    design_names = feat["ref_atom_name_chars"][atom_design_mask]
+    design_elements = feat["ref_element"][atom_design_mask]
+    for design_token_index, res_type_letter in enumerate(res_type_letters):
+        for bbatom_idx, atom_name in enumerate(const.ref_atoms[res_type_letter]):
+            design_atom_idx = sum(res_num_atoms[:design_token_index]) + bbatom_idx
+
+            name = convert_atom_name(atom_name)
+            name = torch.tensor(name).to(feat["ref_element"])
+            design_names[design_atom_idx] = one_hot(name, num_classes=64)
+            design_elements[design_atom_idx] = one_hot(
+                torch.tensor(
+                    const.element_to_atomic_num[
+                        elem_from_name(atom_name, res_type_letter)
+                    ]
+                ),
+                num_classes=const.num_elements,
+            ).to(feat["ref_element"])
+    feat["ref_atom_name_chars"][atom_design_mask] = design_names
+    feat["ref_element"][atom_design_mask] = design_elements
+    return feat
+
+def na_res_from_atom(feat: Dict[str, Tensor],
+    threshold: float = 0.5,
+    invalid_token: dict = {'DNA':'DN','RNA':'N'},
+
+):
+    """Returns a new dict of features with nucleotide types inferred from atom coords geometry. 
+
+    Parameters
+    ----------
+    feat : Dict[str, Tensor]
+        The features.
+
+    threshold : float
+        The value up to which coordinates are still counted as belonging to a backbone atom and therefore contributing to its count.
+
+    invalid_token: dict
+
+    Returns
+    -------
+    Dict[str, Tensor]
+        The ensemble features.
+    """
+    one_hot = one_hot_torch
+    feat = copy.deepcopy(feat)
+
+    for t in ['DNA','RNA']:
+        design_mask = feat["design_mask"].bool() & (feat["mol_type"] == const.chain_type_ids[t]).bool()
+        if design_mask.sum() == 0:
+            continue
+        # Get designed atom coordinates
+        num_atoms=(23 if t=='RNA' else 22)
+        atom_to_token = torch.argmax(feat["atom_to_token"].int(), dim=-1)
+        token_indices = feat["token_index"][design_mask]
+        atom_design_mask = torch.isin(atom_to_token, token_indices)
+        atom_design_mask = atom_design_mask & feat["atom_pad_mask"].bool()
+        design_coords = feat["coords"][atom_design_mask].clone()
+        design_coords = design_coords.view(len(design_coords) // num_atoms, num_atoms, 3)
+
+        # For each sidechain atom, compute closest backbone atom and count them
+        # while excluding those side chain atoms whose distance is above a threshold
+        distances = torch.cdist(design_coords[:, -12:-11], design_coords[:, -11:]).squeeze(1) # distances to C1'
+        counts = (distances < threshold).sum(1).long()
+
+        # update res_type and name
+        res_type_letters = [
+            const.na_placement_count_to_token.get(count, invalid_token[t])
+            for count in counts
+        ]
+        res_type = [const.token_ids[ttype] for ttype in res_type_letters]
+        res_type = torch.tensor(res_type).to(feat["res_type"])
+        feat["res_type"][design_mask] = one_hot(res_type, len(const.tokens))
+        ccds = [convert_ccd(res_name) for res_name in res_type_letters]
+        ccds = torch.tensor(ccds).to(feat["res_type"])
+        feat["ccd"][design_mask] = ccds
+
+        # update ref_element, and ref_atom_name_chars, ref_charge,
+        design_names = feat["ref_atom_name_chars"][atom_design_mask]
+        design_elements = feat["ref_element"][atom_design_mask]
+        for design_token_index, res_type_letter in enumerate(res_type_letters):
+            for bbatom_idx, atom_name in enumerate(const.ref_atoms[res_type_letter]):
+                design_atom_idx = num_atoms * design_token_index + bbatom_idx
+   
+                name = convert_atom_name(atom_name)
+                name = torch.tensor(name).to(feat["ref_element"])
+                design_names[design_atom_idx] = one_hot(name, num_classes=64)
+                design_elements[design_atom_idx] = one_hot(
+                    torch.tensor(
+                        const.element_to_atomic_num[
+                            elem_from_name(atom_name, res_type_letter)
+                        ]
+                    ),
+                    num_classes=const.num_elements,
+                ).to(feat["ref_element"])
+        feat["ref_atom_name_chars"][atom_design_mask] = design_names
+        feat["ref_element"][atom_design_mask] = design_elements
+    return feat
+
 
 
 def find_token_idx_for_atom(data: Input, atom_idx: int) -> int:

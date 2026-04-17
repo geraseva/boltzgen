@@ -18,6 +18,7 @@ from boltzgen.data.feature.featurizer import (
     res_from_atom14,
     res_from_atom37,
     res_all_gly,
+    na_res_all_n
 )
 from boltzgen.data.write.mmcif import to_mmcif
 from boltzgen.data.write.pdb import to_pdb
@@ -270,7 +271,6 @@ class DesignWriter(BasePredictionWriter):
             elif self.backbone_only:
                 sample = res_all_gly(sample)
 
-
             design_mask = batch["design_mask"][0].bool()
             assert design_mask.sum() == sample["design_mask"].sum()
 
@@ -376,13 +376,14 @@ class DesignWriter(BasePredictionWriter):
                 unique_mask = np.ones_like(token_to_res, dtype=bool)
                 unique_mask[1:] = token_to_res[1:] != token_to_res[:-1]
                 design_color_features = design_color_features[unique_mask]
-                open(gen_path, "w").write(
-                    to_mmcif(
-                        structure,
-                        design_coloring=True,
-                        color_features=design_color_features,
+                with open(gen_path, "w") as f: 
+                    f.write(
+                        to_mmcif(
+                            structure,
+                            design_coloring=True,
+                            color_features=design_color_features,
+                       )
                     )
-                )
 
                 # Write metadata
                 metadata_path = f"{self.outdir}/{file_name}.npz"
