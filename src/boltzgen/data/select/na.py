@@ -658,7 +658,7 @@ class NASelector(Selector):
         if len(crop_indices) > 0:
             design_indices = na_tokens["token_idx"][crop_indices]
             if len(design_indices) > 0:
-                tokens["na_tokens"][design_indices] = True
+                tokens["design_mask"][design_indices] = True
 
         return tokens
 
@@ -693,7 +693,7 @@ class NASelector(Selector):
             valid_tokens=na_tokens[na_tokens["resolved_mask"]],
             query=query,
             neighborhood_size=neighborhood_size,
-            max_atoms=num_crop * 10,
+            max_atoms=num_crop * 23,
             max_tokens=num_crop,
         )
 
@@ -725,7 +725,7 @@ class NASelector(Selector):
         na_mask = (tokens["mol_type"] == const.chain_type_ids["DNA"]) | (tokens["mol_type"] == const.chain_type_ids["RNA"]) 
         standard_mask = tokens["is_standard"].astype(bool)
         na_tokens = tokens[na_mask & standard_mask]
-        nonna_tokens = tokens[~na_tokens]
+        nonna_tokens = tokens[~na_mask]
 
         # Get target tokens from a random number of target chains
         nonna_chain_ids = np.unique(nonna_tokens["asym_id"])

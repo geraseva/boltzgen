@@ -2344,7 +2344,9 @@ class Featurizer:
                 & atom_design_mask
                 & atom_features["backbone_mask"].bool()
             )
-            if bb_design_mask.sum() > 1:
+            n_bb_atoms = bb_design_mask.sum() // design_mask.sum()
+            assert n_bb_atoms in [4, 11, 12], 'Invalid number of backbone atoms'
+            if bb_design_mask.sum() > 1 and n_bb_atoms==4:
                 bb = atom_features["coords"][0][bb_design_mask]
                 bb = bb.reshape(-1, 4, 3)
                 assert len(bb) == design_mask.sum()
