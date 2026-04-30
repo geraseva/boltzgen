@@ -239,12 +239,15 @@ class DesignValidator(Validator):
                         & atom_design_mask
                         & sample["backbone_mask"].bool()
                     )
-                    bb = sample["coords"][bb_design_mask].reshape(-1, 4, 3)
-                    bb_native = native["coords"][0][bb_design_mask].reshape(-1, 4, 3)
+
+                    n_bb_atoms = bb_design_mask.sum() // design_mask.sum()
+                    assert n_bb_atoms in [4, 11, 12], 'Invalid number of backbone atoms'
+                    bb = sample["coords"][bb_design_mask].reshape(-1, n_bb_atoms, 3)
+                    bb_native = native["coords"][0][bb_design_mask].reshape(-1, n_bb_atoms, 3)
 
                     # Run DSSP only if at least two backbone residues are present
 
-                    if bb.shape[0] >= 2:
+                    if bb.shape[0] >= 2 and n_bb_atoms==4:
                         # 0: loop,  1: alpha-helix,  2: beta-strand
                         dssp = pydssp.assign(bb, out_type="index")
                         self.ss_metric["loop"].update((dssp == 0).float().mean())
