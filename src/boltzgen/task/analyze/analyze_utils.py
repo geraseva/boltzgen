@@ -39,6 +39,10 @@ from biotite.structure.info import vdw_radius_single, vdw_radius_protor
 import biotite.structure.io.pdbx as pdbx
 import biotite.structure.io.pdb as pdbio
 
+import tempfile
+import json
+import gemmi
+
 TARGET_ID_RE = re.compile(
     r"^(?:(?:sample\d+_|batch\d+_|rank\d+_)+)?([^_]+)(?:_[^_]+)*?(?:_(?:gen))*$"
 )
@@ -1258,3 +1262,41 @@ def compute_liability_metrics(sequence, liability_modality, liability_peptide_ty
         "; ".join(violation_summary) if violation_summary else ""
     )
     return metrics
+
+
+def get_dssr(input_file):
+
+    st = gemmi.read_structure(str(input_file))
+    designed=[]
+    for model in st:
+        for chain in model:
+            for residue in chain:
+                if residue[0].b_iso>0:
+                    designed.append(f'{chain.name}.{residue.name}{residue.seqid}')
+    designed=pd.DataFrame(columns=['nt1'],data=designed)
+
+    prefix = tempfile.TemporaryDirectory(prefix=f'{tempfile.gettempdir()}/', suffix='dssr')
+    cmd = [
+        'x3dna-dssr',
+        f'-i={input_file}',
+        '--pair',
+        '--json',
+        f'--prefix={prefix.name}'
+    ]
+    result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=True
+            )
+    
+    canon=['19-XIX','20-XX']
+    data=json.loads(result.stdout)
+    if data["num_pairs"]==0:
+        return np.full(len(designed),2)
+    data=pd.DataFrame.from_dict(data['pairs'])
+    data=pd.concat([data[['nt1','Saenger']],data[['nt2','Saenger']].rename(columns={"nt2": "nt1"})], axis=0)
+    data['Saenger']=data.Saenger.apply(lambda x: 0 if x in canon else 1)
+    data=data.groupby(by='nt1').max().reset_index()
+
+    return designed.merge(data, on='nt1', how='left').fillna(2).Saenger.to_numpy()

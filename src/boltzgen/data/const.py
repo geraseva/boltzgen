@@ -3590,9 +3590,14 @@ atom_features = [
 ]
 
 # Formal charges (because CCD ones are missing negative charges???)
-formal_charges = {k: defaultdict(int) for k in prot_token_to_letter.keys()}
+formal_charges = {k: defaultdict(int) for k in prot_token_to_letter.keys() | dna_token_to_letter.keys() | rna_token_to_letter.keys()}
 formal_charges["ASP"]["OD2"] = -1
 formal_charges["GLU"]["OE2"] = -1
 formal_charges["LYS"]["NZ"] = 1
 formal_charges["ARG"]["NH2"] = 1
+formal_charges["ARG"]["NH2"] = 1
+
+for k in dna_token_to_letter.keys() | rna_token_to_letter.keys():
+    formal_charges[k]['OP1'] = -1
+
 # Note: Histidine is protonated in CCD, but usually isn't at neutral pH

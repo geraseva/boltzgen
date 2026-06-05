@@ -1166,9 +1166,9 @@ class Structure(NumpySerializable):
 
     @classmethod
     def empty_protein(self, seq_len: int, res_name: str = "GLY") -> "Structure":
-        assert res_name == "GLY", (
-            "Not implemented for anything other than GLY yet. To make it work for others, you also have to add the correct atom charges to atom data instead of always adding 0."
-        )
+        #assert res_name == "GLY", (
+        #    "Not implemented for anything other than GLY yet. To make it work for others, you also have to add the correct atom charges to atom data instead of always adding 0."
+        #)
         res_data = []
         atom_data = []
         coords_data = []
@@ -1205,11 +1205,14 @@ class Structure(NumpySerializable):
                 )
                 coords_data.append(([0.0, 0.0, 0.0],))
                 atom_idx += 1
-
+        
+        chain_type=('PROTEIN' if res_name in const.prot_token_to_letter.keys() else
+                    ('DNA' if res_name in const.dna_token_to_letter.keys() else 
+                     ('RNA' if res_name in const.rna_token_to_letter.keys() else 'NONPOLYMER')))
         chain_data = [
             (
                 "A",
-                const.chain_type_ids["PROTEIN"],
+                const.chain_type_ids[chain_type],
                 0,
                 0,
                 0,

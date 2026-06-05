@@ -5,6 +5,7 @@ import re
 from typing import Dict, List, Optional
 
 import numpy as np
+import random
 import pytorch_lightning as pl
 import torch
 from torch import Tensor
@@ -61,6 +62,7 @@ class Dataset:
     tokenizer: Tokenizer
     featurizer: Featurizer
     chain_ids: List[str] = None
+    mol_type: str = 'protein'
 
 
 def ss_single(feats, random):
@@ -312,7 +314,14 @@ class PredictionDataset(torch.utils.data.Dataset):
                     res_idxs = np.arange(res_idx, res_idx + res_num)
                     str_native = str_native.extract_residues(str_native, res_idxs)
 
-                str_prot = Structure.empty_protein(seq_len=self.dataset.seq_len)
+                if self.dataset.mol_type=='protein':
+                    str_prot = Structure.empty_protein(seq_len=self.dataset.seq_len)
+                elif self.dataset.mol_type=='dna':
+                    str_prot = Structure.empty_protein(seq_len=self.dataset.seq_len, res_name='DN')
+                elif self.dataset.mol_type=='rna':
+                    str_prot = Structure.empty_protein(seq_len=self.dataset.seq_len, res_name='N')
+                elif self.dataset.mol_type=='na':
+                    str_prot = Structure.empty_protein(seq_len=self.dataset.seq_len, res_name=random.choice(['DN','N']))
                 structure = Structure.concatenate(str_native, str_prot)
         except Exception as e:  # noqa: BLE001
             print(f"Failed to load input for {pdb_id} with error {e}. Skipping.")  # noqa: T201

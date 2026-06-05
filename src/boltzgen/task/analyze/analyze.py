@@ -32,6 +32,7 @@ from boltzgen.task.analyze.analyze_utils import (
     save_design_only_structure_to_pdb,
     vendi_scores,
     vendi_sequences,
+    get_dssr,
 )
 from matplotlib import pyplot as plt
 import matplotlib as mpl
@@ -105,6 +106,7 @@ class Analyze(Task):
         skip_specific_ids: List[str] = None,
         designfolding_metrics: bool = False,
         use_design_mask_for_target: bool = False,
+        mol_type: str = 'protein'
     ) -> None:
         """Initialize the task.
 
@@ -154,6 +156,23 @@ class Analyze(Task):
         self.slurm = slurm
         self.diversity_subset = diversity_subset
         self.use_design_mask_for_target = use_design_mask_for_target
+        self.mol_type = mol_type
+        if self.mol_type=='protein':
+            self.residue_keys=[*const.fake_atom_placements]
+            self.ss_keys=["loop", "helix", "sheet"]
+            self.token_to_letter=const.prot_token_to_letter
+        elif self.mol_type=='na':
+            self.residue_keys=[*const.fake_na_atom_placements]
+            self.ss_keys=["canonical","non-canonical","non-paired"]
+            self.token_to_letter=const.dna_token_to_letter | const.rna_token_to_letter 
+        elif self.mol_type=='dna':
+            self.residue_keys=[*const.fake_na_atom_placements][4:]
+            self.ss_keys=["canonical","non-canonical","non-paired"]
+            self.token_to_letter=const.dna_token_to_letter
+        elif self.mol_type=='rna':
+            self.residue_keys=[*const.fake_na_atom_placements][4:]
+            self.ss_keys=["canonical","non-canonical","non-paired"]
+            self.token_to_letter=const.rna_token_to_letter 
 
         # Prevent each worker process from spawning its own multithreaded pools
         torch.set_num_threads(1)
@@ -372,7 +391,7 @@ class Analyze(Task):
                     "target_id": data["target_id"],
                     "sequence": "".join(
                         [
-                            const.prot_token_to_letter[const.tokens[t]]
+                            self.token_to_letter[const.tokens[t]]
                             for t in data["design_seq"]
                         ]
                     ),
@@ -425,10 +444,10 @@ class Analyze(Task):
             design_freqs = np.array(
                 [
                     avg_metrics[f"{k}_fraction"]
-                    for k in const.fake_atom_placements.keys()
+                    for k in self.residue_keys
                 ]
             )
-            x = np.arange(len(const.fake_atom_placements.keys()))
+            x = np.arange(len(self.residue_keys))
             width = 0.15
             fig_res, ax = plt.subplots(figsize=(12, 6))
             ax.bar(x - width / 2, design_freqs, width, label="Design frequency")
@@ -439,7 +458,7 @@ class Analyze(Task):
             ax.set_ylabel("Probability")
             ax.set_title("Res Type distributions")
             ax.set_xticks(x)
-            ax.set_xticklabels(const.fake_atom_placements.keys())
+            ax.set_xticklabels(self.residue_keys)
             ax.legend()
             ax.grid(True, which="both", axis="y", linestyle="--", linewidth=0.5)
             plt.tight_layout()
@@ -447,7 +466,7 @@ class Analyze(Task):
 
             # Make secondary structure distribution plot
             ss_dist = np.array(
-                [avg_metrics["loop"], avg_metrics["helix"], avg_metrics["sheet"]]
+                [avg_metrics[key] for key in self.ss_keys]
             )
             x = np.arange(3)
             width = 0.15
@@ -458,7 +477,7 @@ class Analyze(Task):
             ax.set_ylabel("Frequency")
             ax.set_title("Secondary Structure distributions")
             ax.set_xticks(x)
-            ax.set_xticklabels(["loop", "helix", "sheet"])
+            ax.set_xticklabels(self.ss_keys)
             ax.legend()
             ax.grid(True, which="both", axis="y", linestyle="--", linewidth=0.5)
             plt.tight_layout()
@@ -548,13 +567,13 @@ class Analyze(Task):
         design_chain_seq = res_type_argmax[design_chain_id == feat["asym_id"]]
         design_seq = "".join(
             [
-                const.prot_token_to_letter.get(const.tokens[t], "X")
+                self.token_to_letter.get(const.tokens[t], "X")
                 for t in design_seq_tensor
             ]
         )
         design_chain_seq = "".join(
             [
-                const.prot_token_to_letter.get(const.tokens[t], "X")
+                self.token_to_letter.get(const.tokens[t], "X")
                 for t in design_chain_seq
             ]
         )
@@ -578,7 +597,7 @@ class Analyze(Task):
                 chain_res_types = res_type_argmax[chain_mask]
                 full_chain_seq = "".join(
                     [
-                        const.prot_token_to_letter.get(const.tokens[t], "X")
+                        self.token_to_letter.get(const.tokens[t], "X")
                         for t in chain_res_types
                     ]
                 )
@@ -588,7 +607,7 @@ class Analyze(Task):
                 design_res_types = res_type_argmax[design_chain_mask]
                 design_seq = "".join(
                     [
-                        const.prot_token_to_letter.get(const.tokens[t], "X")
+                        self.token_to_letter.get(const.tokens[t], "X")
                         for t in design_res_types
                     ]
                 )
@@ -695,6 +714,12 @@ class Analyze(Task):
         metrics["num_prot_tokens"] = (
             (feat["mol_type"] == const.chain_type_ids["PROTEIN"]).sum().item()
         )
+        metrics["num_dna_tokens"] = (
+            (feat["mol_type"] == const.chain_type_ids["DNA"]).sum().item()
+        )     
+        metrics["num_rna_tokens"] = (
+            (feat["mol_type"] == const.chain_type_ids["RNA"]).sum().item()
+        )        
         metrics["num_lig_atoms"] = (
             (feat["mol_type"] == const.chain_type_ids["NONPOLYMER"]).sum().item()
         )
@@ -736,7 +761,7 @@ class Analyze(Task):
             metrics["seq_recovery"] = (
                 (design_seq_tensor == native_seq).float().mean().item()
             )
-        for t in const.fake_atom_placements.keys():
+        for t in self.residue_keys:
             metrics[f"{t}_fraction"] = (
                 (design_seq_tensor == const.token_ids[t]).float().mean().item()
             )
@@ -750,39 +775,49 @@ class Analyze(Task):
         )
         bb_coords = feat["coords"][0][bb_design_mask]
         num_atoms = bb_coords.shape[0]
-        if num_atoms % 4 != 0:
-            msg = f"BB atoms {num_atoms} is not divisible by 4 for {path}"
-            print(msg)
-            traceback.print_exc()
-            return None
-        bb = bb_coords.reshape(-1, 4, 3)
-        ca_coords = bb[:, 1, :]
-        if len(bb) > 5:
-            try:
-                dssp = (
-                    torch.zeros(bb.shape[0], dtype=torch.long)
-                    if torch.sum(bb_design_mask).item() == 0
-                    else pydssp.assign(bb, out_type="index")
-                )
-                # Secondary structure conditioning metric
-                if self.ss_conditioning_metrics:
-                    ss_conditioning_metricsed = feat["ss_type"][design_mask]
-                    dssp_adjusted = dssp + 1
-                    ss_metrics = compute_ss_metrics(
-                        dssp_adjusted, ss_conditioning_metricsed
-                    )
-                    metrics.update(ss_metrics)
-                metrics["loop"] = (dssp == 0).float().mean().item()
-                metrics["helix"] = (dssp == 1).float().mean().item()
-                metrics["sheet"] = (dssp == 2).float().mean().item()
-            except:
+        if self.mol_type=='protein':
+            if num_atoms % 4 != 0:
+                msg = f"BB atoms {num_atoms} is not divisible by 4 for {path}"
+                print(msg)
                 traceback.print_exc()
-                print(f"DSSP failed for {path}.")
                 return None
-        else:
-            metrics["loop"] = float("nan")
-            metrics["helix"] = float("nan")
-            metrics["sheet"] = float("nan")
+            bb = bb_coords.reshape(-1, 4, 3)
+            ca_coords = bb[:, 1, :]            
+            if len(bb) > 5:
+                try:
+                    dssp = (
+                        torch.zeros(bb.shape[0], dtype=torch.long)
+                        if torch.sum(bb_design_mask).item() == 0
+                        else pydssp.assign(bb, out_type="index")
+                    )
+                    # Secondary structure conditioning metric
+                    if self.ss_conditioning_metrics:
+                        ss_conditioning_metricsed = feat["ss_type"][design_mask]
+                        dssp_adjusted = dssp + 1
+                        ss_metrics = compute_ss_metrics(
+                            dssp_adjusted, ss_conditioning_metricsed
+                        )
+                        metrics.update(ss_metrics)
+                    metrics["loop"] = (dssp == 0).float().mean().item()
+                    metrics["helix"] = (dssp == 1).float().mean().item()
+                    metrics["sheet"] = (dssp == 2).float().mean().item()
+                except:
+                    traceback.print_exc()
+                    print(f"DSSP failed for {path}.")
+                    return None
+            else:
+                metrics["loop"] = float("nan")
+                metrics["helix"] = float("nan")
+                metrics["sheet"] = float("nan")
+        elif self.mol_type in ['na','dna','rna']:
+            n_bb_atoms = bb_design_mask.sum() // design_mask.sum()
+            assert n_bb_atoms in [11, 12], f'{path}: {n_bb_atoms} is invalid number of backbone atoms'
+            bb = bb_coords.reshape(-1, n_bb_atoms, 3)     
+            ca_coords = bb[:, 9, :]  
+            dssr = get_dssr(path)
+            metrics["canonical"] = np.mean((dssr == 0))
+            metrics["non-canonical"] = np.mean((dssr == 1))
+            metrics["non-paired"] = np.mean((dssr == 2))
 
         # Liability analysis
         if self.liability_analysis:
@@ -1021,7 +1056,7 @@ class Analyze(Task):
                 refold_atom_target_resolved_mask, :
             ][None, ...]
 
-            # Compute reconstruction RMDS compared to a native binder structure (if a native binder exists).
+            # Compute reconstruction RMSD compared to a native binder structure (if a native binder exists).
             if self.native:
                 refold_target_rmsd = compute_rmsd(
                     native_target_coords,
@@ -1115,8 +1150,14 @@ class Analyze(Task):
                     traceback.print_exc()
                     return None
 
-            bb_out = feat_out["coords"][bb_design_mask].reshape(-1, 4, 3)
-            ca_coords_refolded = bb_out[:, 1, :].cpu()
+            n_bb_atoms = bb_design_mask.sum() // design_mask.sum()
+            assert n_bb_atoms in [4, 11, 12], f'{path}: {n_bb_atoms} is invalid number of backbone atoms'
+            bb_out = feat_out["coords"][bb_design_mask].reshape(-1, n_bb_atoms, 3)
+            if n_bb_atoms==4:
+                ca_coords_refolded = bb_out[:, 1, :].cpu()
+            else:
+                ca_coords_refolded = bb_out[:, 9, :].cpu()         
+       
 
         # Affinity metrics
         if self.affinity_metrics:
@@ -1182,7 +1223,7 @@ class Analyze(Task):
             seq = data["design_seq"]
             try:
                 seq = "".join(
-                    [const.prot_token_to_letter[const.tokens[t]] for t in seq]
+                    [self.token_to_letter[const.tokens[t]] for t in seq]
                 )
                 sequences[data["target_id"]].append(seq)
             except KeyError as e:

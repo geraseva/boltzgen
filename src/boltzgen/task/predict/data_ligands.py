@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List
 import re
+import random
 import numpy as np
 import pytorch_lightning as pl
 import torch
@@ -59,6 +60,7 @@ class Dataset:
     tokenizer: Tokenizer
     featurizer: Featurizer
     multiplicity: int = 1
+    mol_type: str = 'protein'
 
 
 def collate(data: List[Dict[str, Tensor]]) -> Dict[str, Tensor]:
@@ -185,7 +187,14 @@ class PredictionDataset(torch.utils.data.Dataset):
                 length = np.random.random_integers(
                     self.dataset.min_len, self.dataset.max_len
                 )
-            str_prot = Structure.empty_protein(seq_len=length)
+            if self.dataset.mol_type=='protein':
+                str_prot = Structure.empty_protein(seq_len=length)
+            elif self.dataset.mol_type=='dna':
+                str_prot = Structure.empty_protein(seq_len=length, res_name='DN')
+            elif self.dataset.mol_type=='rna':
+                str_prot = Structure.empty_protein(seq_len=length, res_name='N')
+            elif self.dataset.mol_type=='na':
+                str_prot = Structure.empty_protein(seq_len=length, res_name=random.choice(['DN','N']))
             structure = Structure.concatenate(str_prot, str_target)
 
         except Exception as e:  # noqa: BLE001

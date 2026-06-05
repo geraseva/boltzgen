@@ -22,6 +22,7 @@ from boltzgen.data.feature.featurizer import (
 )
 from boltzgen.data.write.mmcif import to_mmcif
 from boltzgen.model.validation.validator import Validator
+from boltzgen.task.analyze.analyze_utils import get_dssr
 
 import random
 import string
@@ -38,6 +39,7 @@ class DesignValidator(Validator):
         atom37: bool = False,
         backbone_only: bool = False,
         inverse_fold: bool = False,
+        mol_type: str = 'protein',
     ) -> None:
         super().__init__(
             val_names=val_names, confidence_prediction=confidence_prediction
@@ -46,19 +48,40 @@ class DesignValidator(Validator):
         self.inverse_fold = inverse_fold
         # Design Metrics
         self.seq_metric = nn.ModuleDict()
-        for t in const.fake_atom_placements.keys():
+        self.mol_type=mol_type
+        if self.mol_type=='protein': 
+            self.residue_keys=[*const.fake_atom_placements]
+        elif self.mol_type=='na': 
+            self.residue_keys=[*const.fake_na_atom_placements]
+        elif self.mol_type=='dna': 
+            self.residue_keys=[*const.fake_na_atom_placements][5:]
+        elif self.mol_type=='rna': 
+            self.residue_keys=[*const.fake_na_atom_placements][:5]
+        else: 
+            raise NotImplementedError
+        for t in self.residue_keys:
             self.seq_metric[f"design_{t}"] = MeanMetric()
             self.seq_metric[f"data_{t}"] = MeanMetric()
         self.seq_metric["design_seq_recovery"] = MeanMetric()
 
         self.ss_metric = nn.ModuleDict()
-        self.ss_metric["loop"] = MeanMetric()
-        self.ss_metric["helix"] = MeanMetric()
-        self.ss_metric["sheet"] = MeanMetric()
+        if self.mol_type=='protein': 
+            self.ss_metric["loop"] = MeanMetric()
+            self.ss_metric["helix"] = MeanMetric()
+            self.ss_metric["sheet"] = MeanMetric()
 
-        self.ss_metric["loop_native"] = MeanMetric()
-        self.ss_metric["helix_native"] = MeanMetric()
-        self.ss_metric["sheet_native"] = MeanMetric()
+            self.ss_metric["loop_native"] = MeanMetric()
+            self.ss_metric["helix_native"] = MeanMetric()
+            self.ss_metric["sheet_native"] = MeanMetric()
+
+        elif self.mol_type in ['na','dna','rna']:
+            self.ss_metric["canonical"] = MeanMetric()
+            self.ss_metric["non-canonical"] = MeanMetric()
+            self.ss_metric["non-paired"] = MeanMetric()
+
+            self.ss_metric["canonical_native"] = MeanMetric()
+            self.ss_metric["non-canonical_native"] = MeanMetric()
+            self.ss_metric["non-paired_native"] = MeanMetric()
 
         self.atom14 = atom14
         self.atom37 = atom37
@@ -225,7 +248,7 @@ class DesignValidator(Validator):
                     self.seq_metric["design_seq_recovery"].update(
                         (design_seq == true_seq).float().mean()
                     )
-                    for t in const.fake_atom_placements.keys():
+                    for t in self.fake_atom_placements:
                         self.seq_metric[f"design_{t}"].update(
                             (design_seq == const.token_ids[t]).float().mean()
                         )
@@ -234,36 +257,50 @@ class DesignValidator(Validator):
                         )
 
                     # Compute secondary structure distribution. First get backbone then use pydssp to compute.
-                    bb_design_mask = (
-                        sample["atom_pad_mask"].bool()
-                        & atom_design_mask
-                        & sample["backbone_mask"].bool()
-                    )
-
-                    n_bb_atoms = bb_design_mask.sum() // design_mask.sum()
-                    assert n_bb_atoms in [4, 11, 12], 'Invalid number of backbone atoms'
-                    bb = sample["coords"][bb_design_mask].reshape(-1, n_bb_atoms, 3)
-                    bb_native = native["coords"][0][bb_design_mask].reshape(-1, n_bb_atoms, 3)
-
-                    # Run DSSP only if at least two backbone residues are present
-
-                    if bb.shape[0] >= 2 and n_bb_atoms==4:
-                        # 0: loop,  1: alpha-helix,  2: beta-strand
-                        dssp = pydssp.assign(bb, out_type="index")
-                        self.ss_metric["loop"].update((dssp == 0).float().mean())
-                        self.ss_metric["helix"].update((dssp == 1).float().mean())
-                        self.ss_metric["sheet"].update((dssp == 2).float().mean())
-
-                        dssp_native = pydssp.assign(bb_native, out_type="index")
-                        self.ss_metric["loop_native"].update(
-                            (dssp_native == 0).float().mean()
+                    if self.mol_type=='protein':
+                        bb_design_mask = (
+                            sample["atom_pad_mask"].bool()
+                            & atom_design_mask
+                            & sample["backbone_mask"].bool()
                         )
-                        self.ss_metric["helix_native"].update(
-                            (dssp_native == 1).float().mean()
-                        )
-                        self.ss_metric["sheet_native"].update(
-                            (dssp_native == 2).float().mean()
-                        )
+    
+                        n_bb_atoms = bb_design_mask.sum() // design_mask.sum()
+                        assert n_bb_atoms in [4, 11, 12], 'Invalid number of backbone atoms'
+                        bb = sample["coords"][bb_design_mask].reshape(-1, n_bb_atoms, 3)
+                        bb_native = native["coords"][0][bb_design_mask].reshape(-1, n_bb_atoms, 3)
+    
+                        # Run DSSP only if at least two backbone residues are present
+    
+                        if bb.shape[0] >= 2 and n_bb_atoms==4:
+                            # 0: loop,  1: alpha-helix,  2: beta-strand
+                            dssp = pydssp.assign(bb, out_type="index")
+                            self.ss_metric["loop"].update((dssp == 0).float().mean())
+                            self.ss_metric["helix"].update((dssp == 1).float().mean())
+                            self.ss_metric["sheet"].update((dssp == 2).float().mean())
+    
+                            dssp_native = pydssp.assign(bb_native, out_type="index")
+                            self.ss_metric["loop_native"].update(
+                                (dssp_native == 0).float().mean()
+                            )
+                            self.ss_metric["helix_native"].update(
+                                (dssp_native == 1).float().mean()
+                            )
+                            self.ss_metric["sheet_native"].update(
+                                (dssp_native == 2).float().mean()
+                            )
+                    elif self.mol_type in ['na','dna','rna']:
+                        dssr=get_dssr(gen_path)
+                        #assert len(dssr)==design_mask.sum(), 'Invalid number of designed residues'
+                        self.ss_metric["canonical"].update(torch.from_numpy((dssr == 0)).float().mean())
+                        self.ss_metric["non-canonical"].update(torch.from_numpy((dssr == 1)).float().mean())
+                        self.ss_metric["non-paired"].update(torch.from_numpy((dssr == 2)).float().mean())
+
+                        dssr_native=get_dssr(native_path)
+                        #assert len(dssr_native)==design_mask.sum(), 'Invalid number of designed residues'
+                        self.ss_metric["canonical_native"].update(torch.from_numpy((dssr_native == 0)).float().mean())
+                        self.ss_metric["non-canonical_native"].update(torch.from_numpy((dssr_native == 1)).float().mean())
+                        self.ss_metric["non-paired_native"].update(torch.from_numpy((dssr_native == 2)).float().mean())
+
 
                 return True
             except Exception as e:  # noqa: BLE001
@@ -280,7 +317,7 @@ class DesignValidator(Validator):
         # compute residue distribution metrics
         design_freqs = []
         data_freqs = []
-        for t in const.fake_atom_placements.keys():
+        for t in self.residue_keys:
             design_freqs.append(self.seq_metric[f"design_{t}"].compute().cpu())
             data_freqs.append(self.seq_metric[f"data_{t}"].compute().cpu())
             model.log(
@@ -292,7 +329,7 @@ class DesignValidator(Validator):
             v.reset()
 
         # Make residue distribution plot
-        x = np.arange(len(const.fake_atom_placements.keys()))
+        x = np.arange(len(self.residue_keys))
         width = 0.15
         _, ax = plt.subplots(figsize=(12, 6))
         ax.bar(x - width / 2, design_freqs, width, label="Design frequency")
@@ -301,7 +338,7 @@ class DesignValidator(Validator):
         ax.set_ylabel("Probability")
         ax.set_title("Res Type distributions")
         ax.set_xticks(x)
-        ax.set_xticklabels(const.fake_atom_placements.keys())
+        ax.set_xticklabels(self.residue_keys)
         ax.legend()
         ax.grid(True, which="both", axis="y", linestyle="--", linewidth=0.5)
         plt.tight_layout()
@@ -337,7 +374,7 @@ class DesignValidator(Validator):
         ax.set_ylabel("Frequency")
         ax.set_title("Secondary Structure distributions")
         ax.set_xticks(x)
-        ax.set_xticklabels(["loop", "helix", "sheet"])
+        ax.set_xticklabels([*self.ss_metric][:3])
         ax.legend()
         ax.grid(True, which="both", axis="y", linestyle="--", linewidth=0.5)
         plt.tight_layout()
@@ -359,3 +396,6 @@ class DesignValidator(Validator):
 
                 traceback.print_exc()  # noqa: T201
                 print(f"Image logging failed for {name} {str(path)}.")  # noqa: T201
+
+
+

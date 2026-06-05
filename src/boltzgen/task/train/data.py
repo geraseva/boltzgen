@@ -92,10 +92,12 @@ class DataConfig:
     monomer_target_dir: str = None
     monomer_seq_len: int = 100
     monomer_target_structure_condition: bool = True
+    monomer_mol_type: str = 'protein'
     inverse_fold: bool = False
     ligand_split: str = None
     ligand_target_dir: str = None
     ligand_seq_len: int = 100
+    ligand_mol_type: str = 'protein'
     use_msa: bool = True
     disulfide_prob: float = 1.0
     disulfide_on: bool = False
@@ -1060,6 +1062,7 @@ class TrainingDataModule(pl.LightningDataModule):
                 seq_len=cfg.monomer_seq_len,
                 tokenizer=cfg.tokenizer,
                 featurizer=cfg.featurizer,
+                mol_type=cfg.monomer_mol_type,
             )
 
             # Load canonical molecules
@@ -1094,6 +1097,7 @@ class TrainingDataModule(pl.LightningDataModule):
                 max_len=cfg.ligand_seq_len,
                 tokenizer=cfg.tokenizer,
                 featurizer=cfg.featurizer,
+                mol_type=cfg.ligand_mol_type,
             )
 
             # Load canonical molecules
