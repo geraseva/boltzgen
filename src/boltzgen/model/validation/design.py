@@ -248,7 +248,7 @@ class DesignValidator(Validator):
                     self.seq_metric["design_seq_recovery"].update(
                         (design_seq == true_seq).float().mean()
                     )
-                    for t in self.fake_atom_placements:
+                    for t in self.residue_keys:
                         self.seq_metric[f"design_{t}"].update(
                             (design_seq == const.token_ids[t]).float().mean()
                         )
