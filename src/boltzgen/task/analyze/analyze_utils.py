@@ -11,6 +11,7 @@ from sklearn.cluster import DBSCAN
 from Bio import PDB
 from biotite import structure
 from Bio.Seq import Seq
+import traceback
 
 
 from matplotlib import pyplot as plt
@@ -1287,8 +1288,14 @@ def get_dssr(input_file):
             cmd,
             capture_output=True,
             text=True,
-            check=True
             )
+    if result.returncode!=0:
+        print(f"DSSR failed for {input_file}")
+        print(f"   Command: {' '.join(cmd)}")
+        print(f"   Return code: {result.returncode}")
+        if result.stderr:
+            print(f"   stderr: {result.stderr[:500]}")
+        return np.full(len(designed),np.nan)
     
     canon=['19-XIX','20-XX']
     data=json.loads(result.stdout)

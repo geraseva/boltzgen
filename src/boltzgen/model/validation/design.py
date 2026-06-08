@@ -103,11 +103,11 @@ class DesignValidator(Validator):
             self.common_val_step(model, batch, out, idx_dataset)
 
         feat_masked = out["feat_masked"]
-
-        generated_dir = f"{model.trainer.default_root_dir}/generated/epoch{model.current_epoch}_step{model.global_step}"
+        logname='val'
+        generated_dir = f"{model.trainer.default_root_dir}/{logname}/epoch{model.current_epoch}_step{model.global_step}"
 
         self.design_val_step(
-            model, batch, feat_masked, out, n_samples, batch_idx, generated_dir
+            model, batch, feat_masked, out, n_samples, batch_idx, generated_dir, logname=logname,
         )
 
     def on_epoch_end(self, model):
@@ -277,17 +277,18 @@ class DesignValidator(Validator):
                             self.ss_metric["loop"].update((dssp == 0).float().mean())
                             self.ss_metric["helix"].update((dssp == 1).float().mean())
                             self.ss_metric["sheet"].update((dssp == 2).float().mean())
-    
-                            dssp_native = pydssp.assign(bb_native, out_type="index")
-                            self.ss_metric["loop_native"].update(
-                                (dssp_native == 0).float().mean()
-                            )
-                            self.ss_metric["helix_native"].update(
-                                (dssp_native == 1).float().mean()
-                            )
-                            self.ss_metric["sheet_native"].update(
-                                (dssp_native == 2).float().mean()
-                            )
+
+                            if self.__class__.__name__ not in ['RefoldingValidator'] : 
+                                dssp_native = pydssp.assign(bb_native, out_type="index")
+                                self.ss_metric["loop_native"].update(
+                                    (dssp_native == 0).float().mean()
+                                )
+                                self.ss_metric["helix_native"].update(
+                                    (dssp_native == 1).float().mean()
+                                )
+                                self.ss_metric["sheet_native"].update(
+                                    (dssp_native == 2).float().mean()
+                                )
                     elif self.mol_type in ['na','dna','rna']:
                         dssr=get_dssr(gen_path)
                         #assert len(dssr)==design_mask.sum(), 'Invalid number of designed residues'
@@ -295,12 +296,12 @@ class DesignValidator(Validator):
                         self.ss_metric["non-canonical"].update(torch.from_numpy((dssr == 1)).float().mean())
                         self.ss_metric["non-paired"].update(torch.from_numpy((dssr == 2)).float().mean())
 
-                        dssr_native=get_dssr(native_path)
-                        #assert len(dssr_native)==design_mask.sum(), 'Invalid number of designed residues'
-                        self.ss_metric["canonical_native"].update(torch.from_numpy((dssr_native == 0)).float().mean())
-                        self.ss_metric["non-canonical_native"].update(torch.from_numpy((dssr_native == 1)).float().mean())
-                        self.ss_metric["non-paired_native"].update(torch.from_numpy((dssr_native == 2)).float().mean())
-
+                        if self.__class__.__name__ not in ['RefoldingValidator'] : 
+                            dssr_native=get_dssr(native_path)
+                            #assert len(dssr_native)==design_mask.sum(), 'Invalid number of designed residues'
+                            self.ss_metric["canonical_native"].update(torch.from_numpy((dssr_native == 0)).float().mean())
+                            self.ss_metric["non-canonical_native"].update(torch.from_numpy((dssr_native == 1)).float().mean())
+                            self.ss_metric["non-paired_native"].update(torch.from_numpy((dssr_native == 2)).float().mean())
 
                 return True
             except Exception as e:  # noqa: BLE001
@@ -327,7 +328,6 @@ class DesignValidator(Validator):
             )
         for v in self.seq_metric.values():
             v.reset()
-
         # Make residue distribution plot
         x = np.arange(len(self.residue_keys))
         width = 0.15
@@ -343,7 +343,7 @@ class DesignValidator(Validator):
         ax.grid(True, which="both", axis="y", linestyle="--", linewidth=0.5)
         plt.tight_layout()
 
-        img_dir = Path(f"{model.trainer.default_root_dir}/images")
+        img_dir = Path(f"{model.trainer.default_root_dir}/{logname}/images")
         img_dir.mkdir(exist_ok=True)
         plt.savefig(img_dir / f"res_dist{model.current_epoch}.png")
         plt.close()
@@ -379,7 +379,7 @@ class DesignValidator(Validator):
         ax.grid(True, which="both", axis="y", linestyle="--", linewidth=0.5)
         plt.tight_layout()
 
-        img_dir = Path(f"{model.trainer.default_root_dir}/images")
+        img_dir = Path(f"{model.trainer.default_root_dir}/{logname}/images")
         img_dir.mkdir(exist_ok=True)
         plt.savefig(img_dir / f"ss_dist{model.current_epoch}.png")
         plt.close()

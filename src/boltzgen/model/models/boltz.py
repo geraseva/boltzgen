@@ -1491,7 +1491,7 @@ class Boltz(LightningModule):
         lr = self.training_args.max_lr
         weight_decay = self.training_args.weight_decay
 
-        if "optimimzer_states" in checkpoint:
+        if "optimizer_states" in checkpoint:
             for state in checkpoint["optimizer_states"]:
                 for group in state["param_groups"]:
                     group["lr"] = lr
@@ -1543,7 +1543,7 @@ class Boltz(LightningModule):
 
             if is_changed:
                 checkpoint.pop("optimizer_states", None)
-
+    
     def configure_callbacks(self) -> List[Callback]:
         """Configure model callbacks.
 

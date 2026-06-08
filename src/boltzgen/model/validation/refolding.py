@@ -43,6 +43,7 @@ class RefoldingValidator(design.DesignValidator):
         affinity_model_args: Dict = None,
         affinity_args: Dict = None,
         affinity_checkpoint: str = None,
+        mol_type: str = 'protein',
     ) -> None:
         super().__init__(
             val_names=val_names,
@@ -50,6 +51,7 @@ class RefoldingValidator(design.DesignValidator):
             atom37=atom37,
             backbone_only=backbone_only,
             inverse_fold=inverse_fold,
+            mol_type=mol_type,
         )
 
 
@@ -304,14 +306,15 @@ class RefoldingValidator(design.DesignValidator):
         gc.collect()
         torch.cuda.empty_cache()
 
-        # Compute standard metrics
-        self.common_on_epoch_end(model, logname="val_monomer_ligand")
-        self.on_epoch_end_design(model, logname="val_monomer_ligand")
-        
+
         # Compute the refolding metrics
         for logname in self.dataset_to_logname.values():
             self.on_epoch_end_refolding(model, logname=logname)
 
+            # Compute standard metrics
+            self.common_on_epoch_end(model, logname=logname)
+            self.on_epoch_end_design(model, logname=logname)
+    
         model.log(
             f"val_monomer_ligand/dur", time.time() - self.timestamp, sync_dist=True
         )
