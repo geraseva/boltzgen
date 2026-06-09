@@ -78,6 +78,8 @@ class Training(Task):
         self.resume = resume
         self.pretrained = pretrained
         self.wandb = wandb
+        self.csv = csv
+        self.tb = tb
         self.disable_checkpoint = disable_checkpoint
         self.slurm = slurm
         self.matmul_precision = matmul_precision
