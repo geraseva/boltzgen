@@ -9,7 +9,7 @@ import torch
 from omegaconf import OmegaConf, listconfig
 from pytorch_lightning import LightningModule
 from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint
-from pytorch_lightning.loggers import WandbLogger
+from pytorch_lightning.loggers import WandbLogger, CSVLogger, TensorBoardLogger
 from pytorch_lightning.strategies import DDPStrategy
 
 from boltzgen.task.task import Task
@@ -29,6 +29,8 @@ class Training(Task):
         resume: Optional[str] = None,
         pretrained: Optional[str] = None,
         wandb: Optional[dict] = None,
+        csv: Optional[bool] = False,
+        tb: Optional[bool] = False,
         disable_checkpoint: bool = False,
         slurm: bool = False,
         matmul_precision: Optional[str] = None,
@@ -197,6 +199,33 @@ class Training(Task):
                     OmegaConf.save(config, f)
                 wdb_logger.experiment.save(str(config_out))
             except Exception:  # noqa: BLE001, S110
+                pass
+
+        if self.csv:
+            csv_logger = CSVLogger(
+            save_dir=dirpath,
+            name='csv_logs',
+            version=None  # автоматическая нумерация версий
+            )
+            loggers.append(csv_logger)
+            try:
+                config_out =  Path(dirpath) / "csv_logs" / f"version_{csv_logger.version}" / "run.yaml"
+                with Path.open(config_out, "w") as f:
+                    OmegaConf.save(config, f)
+            except Exception:  
+                pass
+        if self.tb:
+            tb_logger = TensorBoardLogger(
+                save_dir=dirpath,
+                name="tb_logs",
+                version=None
+            )
+            loggers.append(tb_logger)
+            try:
+                config_out =  Path(dirpath) / "csv_logs" / f"version_{tb_logger.version}" / "run.yaml"
+                with Path.open(config_out, "w") as f:
+                    OmegaConf.save(config, f)
+            except Exception:  
                 pass
 
         # Set up trainer
