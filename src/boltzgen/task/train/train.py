@@ -209,6 +209,13 @@ class Training(Task):
             name='csv_logs',
             version=None  # автоматическая нумерация версий
             )
+            csv_logger.log_hyperparams = lambda params: None
+            warnings.warn(
+                "CSVLogger.log_hyperparams replaced with a stub. "
+                "Hyperparameters will NOT be saved to CSV. "
+                "Metrics are still logged normally.",
+                UserWarning
+            )
             loggers.append(csv_logger)
             try:
                 config_out =  Path(dirpath) / "csv_logs" / f"version_{csv_logger.version}" / "run.yaml"

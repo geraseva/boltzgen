@@ -244,17 +244,19 @@ class DesignValidator(Validator):
                 if design_mask.sum() > 5:
                     # Compute res type distribution
                     design_seq = torch.argmax(sample["res_type"], dim=-1)[design_mask]
-                    true_seq = torch.argmax(native["res_type"], dim=-1)[design_mask]
-                    self.seq_metric["design_seq_recovery"].update(
-                        (design_seq == true_seq).float().mean()
-                    )
                     for t in self.residue_keys:
                         self.seq_metric[f"design_{t}"].update(
                             (design_seq == const.token_ids[t]).float().mean()
                         )
-                        self.seq_metric[f"data_{t}"].update(
-                            (true_seq == const.token_ids[t]).float().mean()
+                    if self.__class__.__name__ not in ['RefoldingValidator'] : 
+                        true_seq = torch.argmax(native["res_type"], dim=-1)[design_mask]
+                        self.seq_metric["design_seq_recovery"].update(
+                            (design_seq == true_seq).float().mean()
                         )
+                        for t in self.residue_keys:
+                            self.seq_metric[f"data_{t}"].update(
+                                (true_seq == const.token_ids[t]).float().mean()
+                            )
 
                     # Compute secondary structure distribution. First get backbone then use pydssp to compute.
                     if self.mol_type=='protein':
@@ -317,15 +319,17 @@ class DesignValidator(Validator):
         # Design Metrics
         # compute residue distribution metrics
         design_freqs = []
-        data_freqs = []
         for t in self.residue_keys:
             design_freqs.append(self.seq_metric[f"design_{t}"].compute().cpu())
-            data_freqs.append(self.seq_metric[f"data_{t}"].compute().cpu())
-            model.log(
-                f"{logname}/design_seq_recovery",
-                self.seq_metric["design_seq_recovery"].compute(),
-                prog_bar=False,
-            )
+        if self.__class__.__name__ not in ['RefoldingValidator'] : 
+            data_freqs = []
+            for t in self.residue_keys:
+                data_freqs.append(self.seq_metric[f"data_{t}"].compute().cpu())
+                model.log(
+                    f"{logname}/design_seq_recovery",
+                    self.seq_metric["design_seq_recovery"].compute(),
+                    prog_bar=False,
+                )
         for v in self.seq_metric.values():
             v.reset()
         # Make residue distribution plot
@@ -333,7 +337,8 @@ class DesignValidator(Validator):
         width = 0.15
         _, ax = plt.subplots(figsize=(12, 6))
         ax.bar(x - width / 2, design_freqs, width, label="Design frequency")
-        ax.bar(x + width / 2, data_freqs, width, label="Data frequency")
+        if self.__class__.__name__ not in ['RefoldingValidator'] : 
+            ax.bar(x + width / 2, data_freqs, width, label="Data frequency")
         ax.set_xlabel("Res Type")
         ax.set_ylabel("Probability")
         ax.set_title("Res Type distributions")
@@ -369,7 +374,8 @@ class DesignValidator(Validator):
         width = 0.15
         _, ax = plt.subplots(figsize=(12, 6))
         ax.bar(x - width / 2, ss_dist, width, label="Designed")
-        ax.bar(x + width / 2, ss_dist_native, width, label="Native data")
+        if self.__class__.__name__ not in ['RefoldingValidator'] :        
+            ax.bar(x + width / 2, ss_dist_native, width, label="Native data")
         ax.set_xlabel("Secondary Structure type")
         ax.set_ylabel("Frequency")
         ax.set_title("Secondary Structure distributions")
