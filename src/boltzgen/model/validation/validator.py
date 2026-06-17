@@ -581,7 +581,7 @@ class Validator(nn.Module):
                 self.fold_metrics["disto_lddt"][idx_dataset][m_].reset()
                 model.log(
                     f"{logname}/disto_lddt_{m_}{dataset_name}",
-                    avg_disto_lddt[idx_dataset][m_],
+                    avg_disto_lddt[idx_dataset][m_], sync_dist=True,
                 )
 
                 m = m_ + ":recall"
@@ -596,7 +596,7 @@ class Validator(nn.Module):
                 self.fold_metrics["lddt"][idx_dataset][m].reset()
                 model.log(
                     f"{logname}/lddt_{m_}{dataset_name}",
-                    avg_lddt[idx_dataset][m],
+                    avg_lddt[idx_dataset][m], sync_dist=True,
                 )
 
             overall_disto_lddt = sum(
@@ -605,7 +605,7 @@ class Validator(nn.Module):
             ) / sum(const.out_types_weights.values())
             model.log(
                 f"{logname}/disto_lddt{dataset_name}",
-                overall_disto_lddt,
+                overall_disto_lddt, sync_dist=True,
             )
 
             overall_lddt = sum(
@@ -615,10 +615,10 @@ class Validator(nn.Module):
 
             model.log(
                 f"{logname}/lddt",
-                overall_lddt,
+                overall_lddt, sync_dist=True,
             )
 
             # Distogram loss
             r = self.fold_metrics["disto_loss"][idx_dataset]["disto_loss"].compute()
-            model.log(f"{logname}/disto_loss{dataset_name}", r)
+            model.log(f"{logname}/disto_loss{dataset_name}", r, sync_dist=True,)
             self.fold_metrics["disto_loss"][idx_dataset]["disto_loss"].reset()

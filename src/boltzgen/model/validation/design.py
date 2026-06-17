@@ -320,15 +320,15 @@ class DesignValidator(Validator):
         # compute residue distribution metrics
         design_freqs = []
         for t in self.residue_keys:
-            design_freqs.append(self.seq_metric[f"design_{t}"].compute().cpu())
+            design_freqs.append(self.seq_metric[f"design_{t}"].compute().item())
         if self.__class__.__name__ not in ['RefoldingValidator'] : 
             data_freqs = []
             for t in self.residue_keys:
-                data_freqs.append(self.seq_metric[f"data_{t}"].compute().cpu())
+                data_freqs.append(self.seq_metric[f"data_{t}"].compute().item())
                 model.log(
                     f"{logname}/design_seq_recovery",
                     self.seq_metric["design_seq_recovery"].compute(),
-                    prog_bar=False,
+                    prog_bar=False, sync_dist=True,
                 )
         for v in self.seq_metric.values():
             v.reset()
@@ -349,7 +349,7 @@ class DesignValidator(Validator):
         plt.tight_layout()
 
         img_dir = Path(f"{model.trainer.default_root_dir}/{logname}/images")
-        img_dir.mkdir(exist_ok=True)
+        img_dir.mkdir(exist_ok=True,parents=True)
         plt.savefig(img_dir / f"res_dist{model.current_epoch}.png")
         plt.close()
         model.log_image(
@@ -360,8 +360,8 @@ class DesignValidator(Validator):
         ss_dist = []
         ss_dist_native = []
         for k, v in self.ss_metric.items():
-            metric = v.compute().cpu()
-            model.log(f"{logname}/{k}", metric, prog_bar=False)
+            metric = v.compute().item()
+            model.log(f"{logname}/{k}", metric, prog_bar=False, sync_dist=True,)
             if "_native" in k:
                 ss_dist_native.append(metric)
             else:

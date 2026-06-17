@@ -62,6 +62,8 @@ def factored_lddt_loss(
     ).squeeze(-1)
     protein_mask = (atom_type == const.chain_type_ids["PROTEIN"]).float()
     protein_mask = protein_mask * (1 - design_mask)
+    dna_mask = dna_mask * (1 - design_mask)
+    rna_mask = rna_mask * (1 - design_mask)
 
     nucleotide_mask = dna_mask + rna_mask
 
@@ -482,6 +484,8 @@ def factored_token_lddt_dist_loss(true_d, pred_d, feats, cardinality_weighted=Fa
     design_mask = feats["design_mask"].float()
     protein_mask = (token_type == const.chain_type_ids["PROTEIN"]).float()
     protein_mask = protein_mask * (1 - design_mask)
+    dna_mask = dna_mask * (1 - design_mask)
+    rna_mask = rna_mask * (1 - design_mask)
     nucleotide_mask = dna_mask + rna_mask
 
     token_mask = feats["token_disto_mask"]

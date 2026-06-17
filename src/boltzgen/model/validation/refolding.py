@@ -306,15 +306,14 @@ class RefoldingValidator(design.DesignValidator):
         gc.collect()
         torch.cuda.empty_cache()
 
+        # Compute standard metrics
+        self.common_on_epoch_end(model, logname="val_monomer_ligand")
+        self.on_epoch_end_design(model, logname="val_monomer_ligand")
 
         # Compute the refolding metrics
         for logname in self.dataset_to_logname.values():
             self.on_epoch_end_refolding(model, logname=logname)
 
-            # Compute standard metrics
-            self.common_on_epoch_end(model, logname=logname)
-            self.on_epoch_end_design(model, logname=logname)
-    
         model.log(
             f"val_monomer_ligand/dur", time.time() - self.timestamp, sync_dist=True
         )
