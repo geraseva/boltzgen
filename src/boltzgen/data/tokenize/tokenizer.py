@@ -93,21 +93,15 @@ def compute_frame(
 
 
 def map_modified_residue_to_res_type(chain, res, map_to_closest_residue=False):
-    if map_to_closest_residue and (
-        res["name"] in protein_letters_3to1_extended
-        or res["name"] in nucleic_letters_3to1_extended
-    ):
-        modified_letter = (
-            protein_letters_3to1_extended[res["name"]]
-            if res["name"] in protein_letters_3to1_extended
-            else nucleic_letters_3to1_extended[res["name"]]
-        )
-
+    if map_to_closest_residue:
         if chain["mol_type"] == const.chain_type_ids["PROTEIN"]:
+            modified_letter = protein_letters_3to1_extended.get(res["name"],'X')
             token_type_name = prot_letter_to_token[modified_letter]
         elif chain["mol_type"] == const.chain_type_ids["DNA"]:
+            modified_letter = nucleic_letters_3to1_extended.get(res["name"],'N').replace('U','T')
             token_type_name = const.dna_letter_to_token[modified_letter]
         elif chain["mol_type"] == const.chain_type_ids["RNA"]:
+            modified_letter = nucleic_letters_3to1_extended.get(res["name"],'N').replace('T','U')
             token_type_name = const.rna_letter_to_token[modified_letter]
         else:
             msg = "Only polymers should be present here"
@@ -116,15 +110,7 @@ def map_modified_residue_to_res_type(chain, res, map_to_closest_residue=False):
         res_id = const.token_ids[token_type_name]
 
     else:
-        unk_token = (
-            const.unk_token["DNA"]
-            if chain["mol_type"] == const.chain_type_ids["DNA"]
-            else (
-                const.unk_token["RNA"]
-                if chain["mol_type"] == const.chain_type_ids["RNA"]
-                else const.unk_token["PROTEIN"]
-            )
-        )
+        unk_token = const.unk_token[const.chain_types[chain["mol_type"]]]
         res_id = const.token_ids[unk_token]
 
     return res_id
