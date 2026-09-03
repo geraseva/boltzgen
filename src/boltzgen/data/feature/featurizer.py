@@ -2064,7 +2064,7 @@ def na_res_all_n(feat: Dict[str, Tensor],
 
 def na_res_from_atom(feat: Dict[str, Tensor],
     threshold: float = 0.5,
-    invalid_token: dict = {'DNA':'DN','RNA':'N'},
+    invalid_token: dict = {'DNA':'DG','RNA':'G'},
 
 ):
     """Returns a new dict of features with nucleotide types inferred from atom coords geometry. 
@@ -2359,7 +2359,7 @@ class Featurizer:
                     ss *= design_ss_mask
                 except:
                     print(
-                        "Could not comptue secondary structure annotation. Leaving it unspecified"
+                        "Could not compute secondary structure annotation. Leaving it unspecified"
                     )
         token_features.update({"ss_type": ss})
 
