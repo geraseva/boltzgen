@@ -1,5 +1,5 @@
 import re
-import string
+import string, itertools
 from collections import defaultdict
 
 import gemmi
@@ -62,8 +62,11 @@ def to_mmcif(
     entity_counter = 1
     chain_names = [re.sub(r"\d+", "", c["name"]) for c in structure.chains]
     chain_id_pool = list(reversed(string.ascii_uppercase)) + list(
-        reversed(string.digits)
-    )
+        reversed(string.digits)) + [str(x) for x in range(10,100)] + [a + b 
+                                                                      for a, b 
+                                                                      in itertools.product(string.ascii_uppercase, 
+                                                                                           repeat=2)]
+
     used_names = []
     old_to_new_chainid = {}
     for chain in structure.chains:

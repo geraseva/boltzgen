@@ -57,6 +57,7 @@ class TokenData:
     feature_asym_id: int
     feature_res_idx: int
     symmetric_group: int
+    ss_type: int
 
 
 def compute_frame(
@@ -260,6 +261,7 @@ class Tokenizer:
                         feature_asym_id=chain["asym_id"],
                         feature_res_idx=res["res_idx"],
                         symmetric_group=chain["symmetric_group"],
+                        ss_type=res['ss_type']
                     )
                     token_data.append(tokendata_to_tuple(token))
 
@@ -326,6 +328,7 @@ class Tokenizer:
                             feature_asym_id=chain["asym_id"],
                             feature_res_idx=res["res_idx"],
                             symmetric_group=chain["symmetric_group"],
+                            ss_type=res['ss_type']
                         )
                         token_data.append(tokendata_to_tuple(token))
 
@@ -386,6 +389,7 @@ class Tokenizer:
                         feature_asym_id=chain["asym_id"],
                         feature_res_idx=res["res_idx"],
                         symmetric_group=chain["symmetric_group"],
+                        ss_type=res['ss_type']
                     )
                     token_data.append(tokendata_to_tuple(token))
 

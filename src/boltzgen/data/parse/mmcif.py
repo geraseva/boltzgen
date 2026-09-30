@@ -1289,6 +1289,7 @@ def mmcif_from_block(  # noqa: C901, PLR0915, PLR0912
                     atom_disto,
                     res.is_standard,
                     res.is_present,
+                    0
                 )
             )
             res_to_idx[(chain.name, i)] = (res_idx, atom_idx)

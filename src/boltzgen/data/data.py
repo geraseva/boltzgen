@@ -279,6 +279,7 @@ Residue = [
     ("atom_disto", np.dtype("i4")),
     ("is_standard", np.dtype("?")),
     ("is_present", np.dtype("?")),
+    ("ss_type", np.dtype("i1")),
 ]
 
 Chain = [
@@ -341,7 +342,7 @@ class Structure(NumpySerializable):
         """
         structure = np.load(path)
 
-        # Temporary for adding a  cyclic period that is not yet in the preprocessed data
+        # Temporary for adding a cyclic period that is not yet in the preprocessed data
         if "cyclic_period" not in structure["chains"].dtype.names:
             chains = np.empty(structure["chains"].shape, dtype=Chain)
             for name in structure["chains"].dtype.names:
@@ -350,10 +351,18 @@ class Structure(NumpySerializable):
         else:
             chains = structure["chains"]
 
+        if 'ss_type' not in structure['residues'].dtype.names:
+            residues = np.empty(structure['residues'].shape, dtype=Residue)
+            for name in structure["residues"].dtype.names:
+                residues[name] = structure["residues"][name]
+            residues['ss_type'] = 0
+        else:
+            residues = structure["residues"]
+
         return cls(
             atoms=structure["atoms"],
             bonds=structure["bonds"],
-            residues=structure["residues"],
+            residues=residues,
             chains=chains,
             interfaces=structure["interfaces"],
             mask=structure["mask"],
@@ -595,6 +604,7 @@ class Structure(NumpySerializable):
                     atom_creation_idx + const.res_to_disto_atom_id["GLY"],  # atom_disto
                     True,  # is_standard
                     True,  # is_present
+                    0,     # secondary structure
                 )
             )
 
@@ -1066,6 +1076,7 @@ class Structure(NumpySerializable):
                         res["atom_disto"],
                         res["is_standard"],
                         res["is_present"],
+                        res["ss_type"],
                     )
                 )
                 for j, atom in enumerate(
@@ -1100,6 +1111,7 @@ class Structure(NumpySerializable):
                     atom_disto,
                     res["is_standard"],
                     res["is_present"],
+                    res["ss_type"],
                 )
             )
 
@@ -1188,6 +1200,7 @@ class Structure(NumpySerializable):
                     atom_idx + disto_idx,
                     True,
                     True,
+                    0
                 )
             )
 
@@ -1412,6 +1425,7 @@ class Structure(NumpySerializable):
                     atom_idx + disto_idx,
                     is_standard[token_selector[0]],
                     token_resolved_mask[token_selector[0]],
+                    0
                 )
             )
 
@@ -2078,6 +2092,7 @@ Token = [
     ("feature_asym_id", np.dtype("i4")),
     ("feature_res_idx", np.dtype("i4")),
     ("symmetric_group", np.dtype("i4")),
+    ("ss_type", np.dtype("i4")),
 ]
 
 TokenBond = [

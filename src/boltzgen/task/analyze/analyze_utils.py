@@ -1303,7 +1303,7 @@ def get_dssr(input_file):
         return np.full(len(designed),2)
     data=pd.DataFrame.from_dict(data['pairs'])
     data=pd.concat([data[['nt1','Saenger']],data[['nt2','Saenger']].rename(columns={"nt2": "nt1"})], axis=0)
-    data['Saenger']=data.Saenger.apply(lambda x: 0 if x in canon else 1)
+    data['Saenger']=data.Saenger.apply(lambda x: 1 if x in canon else 2).astype(int)
     data=data.groupby(by='nt1').max().reset_index()
 
-    return designed.merge(data, on='nt1', how='left').fillna(2).Saenger.to_numpy()
+    return designed.merge(data, on='nt1', how='left').fillna(0).Saenger.to_numpy()

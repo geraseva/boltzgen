@@ -214,8 +214,10 @@ class DesignValidator(Validator):
                     structure = Structure.add_side_chains(
                         structure, residue_mask=res_design_mask
                     )
-                open(gen_path, "w").write(to_mmcif(structure))
-                open(native_path, "w").write(to_mmcif(str_native))
+                with open(gen_path, "w") as f:
+                    f.write(to_mmcif(structure))
+                with open(native_path, "w")as f:
+                    f.write(to_mmcif(str_native))
 
                 # Write metadata
                 metadata_path = f"{basename}.npz"
@@ -294,16 +296,16 @@ class DesignValidator(Validator):
                     elif self.mol_type in ['na','dna','rna']:
                         dssr=get_dssr(gen_path)
                         #assert len(dssr)==design_mask.sum(), 'Invalid number of designed residues'
-                        self.ss_metric["canonical"].update(torch.from_numpy((dssr == 0)).float().mean())
-                        self.ss_metric["non-canonical"].update(torch.from_numpy((dssr == 1)).float().mean())
-                        self.ss_metric["non-paired"].update(torch.from_numpy((dssr == 2)).float().mean())
+                        self.ss_metric["non-paired"].update(torch.from_numpy((dssr == 0)).float().mean())
+                        self.ss_metric["canonical"].update(torch.from_numpy((dssr == 1)).float().mean())
+                        self.ss_metric["non-canonical"].update(torch.from_numpy((dssr == 2)).float().mean())
 
                         if self.__class__.__name__ not in ['RefoldingValidator'] : 
                             dssr_native=get_dssr(native_path)
                             #assert len(dssr_native)==design_mask.sum(), 'Invalid number of designed residues'
-                            self.ss_metric["canonical_native"].update(torch.from_numpy((dssr_native == 0)).float().mean())
-                            self.ss_metric["non-canonical_native"].update(torch.from_numpy((dssr_native == 1)).float().mean())
-                            self.ss_metric["non-paired_native"].update(torch.from_numpy((dssr_native == 2)).float().mean())
+                            self.ss_metric["non-paired_native"].update(torch.from_numpy((dssr_native == 0)).float().mean())
+                            self.ss_metric["canonical_native"].update(torch.from_numpy((dssr_native == 1)).float().mean())
+                            self.ss_metric["non-canonical_native"].update(torch.from_numpy((dssr_native == 2)).float().mean())
 
                 return True
             except Exception as e:  # noqa: BLE001

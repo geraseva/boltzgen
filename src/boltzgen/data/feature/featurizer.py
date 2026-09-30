@@ -719,6 +719,7 @@ def process_token_features(  # noqa: C901, PLR0915, PLR0912
     feature_asym_id = from_numpy(token_data["feature_asym_id"]).long()
     symmetric_group = from_numpy(token_data["symmetric_group"]).long()
     token_to_res = from_numpy(data.token_to_res).long()
+    ss_type = from_numpy(token_data["ss_type"]).long()
 
     method = (
         np.zeros(len(token_data))
@@ -897,6 +898,7 @@ def process_token_features(  # noqa: C901, PLR0915, PLR0912
             feature_asym_id = pad_dim(feature_asym_id, 0, pad_len)
             symmetric_group = pad_dim(symmetric_group, 0, pad_len)
             token_to_res = pad_dim(token_to_res, 0, pad_len)
+            ss_type = pad_dim(ss_type, 0, pad_len)
     token_features = {
         "token_index": token_index,
         "residue_index": residue_index,
@@ -934,6 +936,7 @@ def process_token_features(  # noqa: C901, PLR0915, PLR0912
         "symmetric_group": symmetric_group,
         "ligand_affinity_mask": ligand_affinity_mask,
         "token_to_res": token_to_res,
+        "ss_type": ss_type
     }
 
     return token_features
@@ -2329,7 +2332,9 @@ class Featurizer:
                 data, symmetries, backbone_only, atom14, atom37
             )
 
+        '''
         # Compute secondary structure features
+        ### Already precomputed
         design_mask = token_features["design_mask"].bool()
         ss = torch.zeros(len(design_mask), dtype=torch.long)
         design_ss_mask = token_features["design_ss_mask"].bool()
@@ -2362,7 +2367,7 @@ class Featurizer:
                         "Could not compute secondary structure annotation. Leaving it unspecified"
                     )
         token_features.update({"ss_type": ss})
-
+        '''
         return {
             "structure_bonds": data.structure.bonds,
             **token_features,
