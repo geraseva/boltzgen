@@ -75,13 +75,13 @@ class DesignValidator(Validator):
             self.ss_metric["sheet_native"] = MeanMetric()
 
         elif self.mol_type in ['na','dna','rna']:
+            self.ss_metric["non-paired"] = MeanMetric()
             self.ss_metric["canonical"] = MeanMetric()
             self.ss_metric["non-canonical"] = MeanMetric()
-            self.ss_metric["non-paired"] = MeanMetric()
 
+            self.ss_metric["non-paired_native"] = MeanMetric()
             self.ss_metric["canonical_native"] = MeanMetric()
             self.ss_metric["non-canonical_native"] = MeanMetric()
-            self.ss_metric["non-paired_native"] = MeanMetric()
 
         self.atom14 = atom14
         self.atom37 = atom37
