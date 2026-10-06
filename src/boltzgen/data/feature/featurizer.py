@@ -2111,7 +2111,7 @@ def na_res_from_atom(feat: Dict[str, Tensor],
         # update res_type and name
         res_type_letters = [
             const.na_placement_count_to_token.get(count, invalid_token[t])
-            for count in counts
+            for count in counts.tolist()
         ]
         res_type = [const.token_ids[ttype] for ttype in res_type_letters]
         res_type = torch.tensor(res_type).to(feat["res_type"])
