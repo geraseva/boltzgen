@@ -534,7 +534,10 @@ fake_na_atom_placements = {
 token_to_placement_count = {ttype:[placement.count(atom_name) for atom_name in ref_atoms["GLY"]] for ttype, placement in fake_atom_placements.items()}
 placement_count_to_token = {tuple(v):k for k,v in token_to_placement_count.items()}
 
-na_placement_count_to_token = {placement.count("C1'"): ttype for ttype, placement in fake_na_atom_placements.items()}
+na_placement_count_to_token = {
+    'DNA': {placement.count("C1'"): ttype for ttype, placement in fake_na_atom_placements.items() if ttype.startswith("D")},
+    'RNA': {placement.count("C1'"): ttype for ttype, placement in fake_na_atom_placements.items()if not ttype.startswith("D")}
+}    
 
 fake_atom_placements_N_C = {
     "UNK": [".", ".", ".", ".", ".", "N", "N", "N", "N", "N", "N", "N", "N", "N"], # 0
