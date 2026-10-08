@@ -727,6 +727,8 @@ class Analyze(Task):
         metrics["num_tokens"] = feat["token_pad_mask"].sum().item()
         metrics["num_design"] = feat["design_mask"].sum().item()
 
+        design_type=const.chain_types[(feat["mol_type"][feat["design_mask"]].max().item())]
+
         # delta sasa for original
         if self.delta_sasa_original:
             (
@@ -1108,10 +1110,14 @@ class Analyze(Task):
                 des_refold_cif_path.unlink(missing_ok=True)
 
             # Compute sequence based hydrophobicity
-            metrics["design_chain_hydrophobicity"] = calc_hydrophobicity(
-                design_chain_seq
-            )
-            metrics["design_hydrophobicity"] = calc_hydrophobicity(design_seq)
+            if design_type=='PROTEIN':
+                metrics["design_chain_hydrophobicity"] = calc_hydrophobicity(
+                    design_chain_seq
+                )
+                metrics["design_hydrophobicity"] = calc_hydrophobicity(design_seq)
+            else:
+                metrics["design_chain_hydrophobicity"]=0.0
+                metrics["design_hydrophobicity"]=0.0
 
             # delta sasa for refolded
             if self.delta_sasa_refolded:
